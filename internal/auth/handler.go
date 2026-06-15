@@ -1,18 +1,25 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
 )
 
+// AuthService defines the operations that the auth handler needs from the service layer.
+type AuthService interface {
+	Register(ctx context.Context, email, password string) (*AuthResponse, error)
+	Login(ctx context.Context, email, password string) (*AuthResponse, error)
+}
+
 // Handler holds HTTP handlers for authentication endpoints.
 type Handler struct {
-	svc *Service
+	svc AuthService
 }
 
 // NewHandler creates a new handler.
-func NewHandler(svc *Service) *Handler {
+func NewHandler(svc AuthService) *Handler {
 	return &Handler{svc: svc}
 }
 
