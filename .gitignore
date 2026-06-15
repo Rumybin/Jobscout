@@ -1,0 +1,14 @@
+# Environment
+.env
+
+# Binaries
+/bin/
+*.exe
+
+# Vendor
+vendor/
+
+# Dev notes (not for public repo)
+PROGRESS.md
+AGENT.md
+CODE_STANDARDS.md
