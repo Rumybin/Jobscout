@@ -15,6 +15,8 @@ import (
 	"jobscout/internal/auth"
 	"jobscout/internal/config"
 	"jobscout/internal/database"
+	"jobscout/internal/jobs"
+	"jobscout/internal/jobsource"
 	"jobscout/internal/middleware"
 )
 
@@ -32,6 +34,11 @@ func main() {
 
 	authSvc := auth.NewService(pool, cfg)
 	authHandler := auth.NewHandler(authSvc)
+
+	// Job source + search
+	jobSource := jobsource.NewRemotive(cfg.RemotiveBaseURL)
+	jobSvc := jobs.NewService(jobSource)
+	jobHandler := jobs.NewHandler(jobSvc)
 
 	r := chi.NewRouter()
 
@@ -64,6 +71,8 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(resp)
 		})
+
+		r.Get("/jobs/search", jobHandler.Search)
 	})
 
 	// Graceful shutdown
