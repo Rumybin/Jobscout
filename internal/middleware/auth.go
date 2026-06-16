@@ -11,8 +11,8 @@ import (
 
 type contextKey string
 
-const userIDKey contextKey = "userID"
-const emailKey contextKey = "email"
+const UserIDKey contextKey = "userID"
+const EmailKey contextKey = "email"
 
 // Auth is a middleware that validates the JWT in the Authorization header
 // and injects the user ID and email into the request context.
@@ -33,8 +33,8 @@ func Auth(cfg *config.Config) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), userIDKey, claims.Subject)
-			ctx = context.WithValue(ctx, emailKey, claims.Email)
+			ctx := context.WithValue(r.Context(), UserIDKey, claims.Subject)
+			ctx = context.WithValue(ctx, EmailKey, claims.Email)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -43,7 +43,7 @@ func Auth(cfg *config.Config) func(http.Handler) http.Handler {
 
 // UserIDFromContext extracts the user ID from the context.
 func UserIDFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(userIDKey).(string); ok {
+	if v, ok := ctx.Value(UserIDKey).(string); ok {
 		return v
 	}
 	return ""
@@ -51,7 +51,7 @@ func UserIDFromContext(ctx context.Context) string {
 
 // EmailFromContext extracts the email from the context.
 func EmailFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(emailKey).(string); ok {
+	if v, ok := ctx.Value(EmailKey).(string); ok {
 		return v
 	}
 	return ""
