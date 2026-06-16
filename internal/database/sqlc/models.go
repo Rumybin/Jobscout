@@ -8,6 +8,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Application struct {
+	ID                        pgtype.UUID
+	UserID                    pgtype.UUID
+	Source                    string
+	ExternalID                string
+	Title                     string
+	CompanyName               string
+	Category                  string
+	JobType                   string
+	CandidateRequiredLocation string
+	SalaryText                string
+	ExternalUrl               string
+	PublicationDate           pgtype.Timestamptz
+	Description               string
+	Status                    string
+	CreatedAt                 pgtype.Timestamptz
+	UpdatedAt                 pgtype.Timestamptz
+}
+
 type User struct {
 	ID           pgtype.UUID
 	Email        string
