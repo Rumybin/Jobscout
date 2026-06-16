@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"jobscout/internal/applications"
 	"jobscout/internal/auth"
 	"jobscout/internal/config"
 	"jobscout/internal/database"
@@ -39,6 +40,10 @@ func main() {
 	jobSource := jobsource.NewRemotive(cfg.RemotiveBaseURL)
 	jobSvc := jobs.NewService(jobSource)
 	jobHandler := jobs.NewHandler(jobSvc)
+
+	// Applications
+	appSvc := applications.NewService(pool)
+	appHandler := applications.NewHandler(appSvc)
 
 	r := chi.NewRouter()
 
@@ -73,6 +78,11 @@ func main() {
 		})
 
 		r.Get("/jobs/search", jobHandler.Search)
+
+		// Applications
+		r.Route("/applications", func(r chi.Router) {
+			r.Post("/", appHandler.Save)
+		})
 	})
 
 	// Graceful shutdown
