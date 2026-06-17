@@ -6,18 +6,18 @@ package applications
 // For manual entries (e.g. from career pages, networking), leave source empty
 // or set it to "manual". The server will auto-generate external_id.
 type SaveApplicationRequest struct {
-	Source                     string  `json:"source"`
-	ExternalID                 string  `json:"external_id"`
-	Title                      string  `json:"title"`
-	CompanyName                string  `json:"company_name"`
-	Category                   string  `json:"category,omitempty"`
-	JobType                    string  `json:"job_type,omitempty"`
-	CandidateRequiredLocation  string  `json:"candidate_required_location,omitempty"`
-	SalaryText                 string  `json:"salary_text,omitempty"`
-	ExternalURL                string  `json:"external_url,omitempty"`
-	PublicationDate            *string `json:"publication_date,omitempty"`
-	Description                string  `json:"description,omitempty"`
-	Status                     string  `json:"status,omitempty"`
+	Source                    string  `json:"source"`
+	ExternalID                string  `json:"external_id"`
+	Title                     string  `json:"title"`
+	CompanyName               string  `json:"company_name"`
+	Category                  string  `json:"category,omitempty"`
+	JobType                   string  `json:"job_type,omitempty"`
+	CandidateRequiredLocation string  `json:"candidate_required_location,omitempty"`
+	SalaryText                string  `json:"salary_text,omitempty"`
+	ExternalURL               string  `json:"external_url,omitempty"`
+	PublicationDate           *string `json:"publication_date,omitempty"`
+	Description               string  `json:"description,omitempty"`
+	Status                    string  `json:"status,omitempty"`
 }
 
 // ApplicationResponse is returned by POST /applications.
@@ -38,4 +38,27 @@ type ApplicationResponse struct {
 	Status                    string  `json:"status"`
 	CreatedAt                 string  `json:"created_at"`
 	UpdatedAt                 string  `json:"updated_at"`
+}
+
+// UpdateApplicationRequest is the expected JSON body for PATCH /applications/{id}.
+//
+// Only fields that are explicitly provided will be updated (partial update).
+// Status is intentionally excluded; use PATCH /applications/{id}/status instead.
+type UpdateApplicationRequest struct {
+	Title                     *string `json:"title,omitempty"`
+	CompanyName               *string `json:"company_name,omitempty"`
+	Category                  *string `json:"category,omitempty"`
+	JobType                   *string `json:"job_type,omitempty"`
+	CandidateRequiredLocation *string `json:"candidate_required_location,omitempty"`
+	SalaryText                *string `json:"salary_text,omitempty"`
+	ExternalURL               *string `json:"external_url,omitempty"`
+	PublicationDate           *string `json:"publication_date,omitempty"`
+	Description               *string `json:"description,omitempty"`
+}
+
+// UpdateStatusRequest is the expected JSON body for PATCH /applications/{id}/status.
+//
+// Only status is accepted. Other fields are ignored.
+type UpdateStatusRequest struct {
+	Status string `json:"status"`
 }

@@ -29,3 +29,12 @@ type ConflictError struct {
 func (e ConflictError) Error() string {
 	return e.Message
 }
+
+// NotFoundError represents a not-found error (404).
+type NotFoundError struct {
+	Message string
+}
+
+func (e NotFoundError) Error() string {
+	return e.Message
+}

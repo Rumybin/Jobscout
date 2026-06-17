@@ -82,6 +82,13 @@ func main() {
 		// Applications
 		r.Route("/applications", func(r chi.Router) {
 			r.Post("/", appHandler.Save)
+			r.Get("/", appHandler.List)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Get("/", appHandler.GetOne)
+				r.Patch("/", appHandler.Update)
+				r.Delete("/", appHandler.Delete)
+				r.Patch("/status", appHandler.UpdateStatus)
+			})
 		})
 	})
 

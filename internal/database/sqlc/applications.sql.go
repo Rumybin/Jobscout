@@ -87,3 +87,230 @@ func (q *Queries) CreateApplication(ctx context.Context, arg CreateApplicationPa
 	)
 	return i, err
 }
+
+const deleteApplication = `-- name: DeleteApplication :one
+DELETE FROM applications
+WHERE id = $1 AND user_id = $2
+RETURNING id
+`
+
+type DeleteApplicationParams struct {
+	ID     pgtype.UUID
+	UserID pgtype.UUID
+}
+
+func (q *Queries) DeleteApplication(ctx context.Context, arg DeleteApplicationParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, deleteApplication, arg.ID, arg.UserID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getApplicationByID = `-- name: GetApplicationByID :one
+SELECT id, user_id, source, external_id, title, company_name, category,
+       job_type, candidate_required_location, salary_text, external_url,
+       publication_date, description, status, created_at, updated_at
+FROM applications
+WHERE id = $1 AND user_id = $2
+`
+
+type GetApplicationByIDParams struct {
+	ID     pgtype.UUID
+	UserID pgtype.UUID
+}
+
+func (q *Queries) GetApplicationByID(ctx context.Context, arg GetApplicationByIDParams) (Application, error) {
+	row := q.db.QueryRow(ctx, getApplicationByID, arg.ID, arg.UserID)
+	var i Application
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Source,
+		&i.ExternalID,
+		&i.Title,
+		&i.CompanyName,
+		&i.Category,
+		&i.JobType,
+		&i.CandidateRequiredLocation,
+		&i.SalaryText,
+		&i.ExternalUrl,
+		&i.PublicationDate,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getApplicationsByUser = `-- name: GetApplicationsByUser :many
+SELECT id, user_id, source, external_id, title, company_name, category,
+       job_type, candidate_required_location, salary_text, external_url,
+       publication_date, description, status, created_at, updated_at
+FROM applications
+WHERE user_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetApplicationsByUser(ctx context.Context, userID pgtype.UUID) ([]Application, error) {
+	rows, err := q.db.Query(ctx, getApplicationsByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Application
+	for rows.Next() {
+		var i Application
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Source,
+			&i.ExternalID,
+			&i.Title,
+			&i.CompanyName,
+			&i.Category,
+			&i.JobType,
+			&i.CandidateRequiredLocation,
+			&i.SalaryText,
+			&i.ExternalUrl,
+			&i.PublicationDate,
+			&i.Description,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateApplication = `-- name: UpdateApplication :one
+UPDATE applications
+SET
+    title = CASE WHEN $3::boolean THEN $4::text ELSE title END,
+    company_name = CASE WHEN $5::boolean THEN $6::text ELSE company_name END,
+    category = CASE WHEN $7::boolean THEN $8::text ELSE category END,
+    job_type = CASE WHEN $9::boolean THEN $10::text ELSE job_type END,
+    candidate_required_location = CASE WHEN $11::boolean THEN $12::text ELSE candidate_required_location END,
+    salary_text = CASE WHEN $13::boolean THEN $14::text ELSE salary_text END,
+    external_url = CASE WHEN $15::boolean THEN $16::text ELSE external_url END,
+    publication_date = CASE WHEN $17::boolean THEN $18::timestamptz ELSE publication_date END,
+    description = CASE WHEN $19::boolean THEN $20::text ELSE description END,
+    updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, source, external_id, title, company_name, category,
+          job_type, candidate_required_location, salary_text, external_url,
+          publication_date, description, status, created_at, updated_at
+`
+
+type UpdateApplicationParams struct {
+	ID                              pgtype.UUID
+	UserID                          pgtype.UUID
+	UpdateTitle                     bool
+	Title                           string
+	UpdateCompanyName               bool
+	CompanyName                     string
+	UpdateCategory                  bool
+	Category                        string
+	UpdateJobType                   bool
+	JobType                         string
+	UpdateCandidateRequiredLocation bool
+	CandidateRequiredLocation       string
+	UpdateSalaryText                bool
+	SalaryText                      string
+	UpdateExternalUrl               bool
+	ExternalUrl                     string
+	UpdatePublicationDate           bool
+	PublicationDate                 pgtype.Timestamptz
+	UpdateDescription               bool
+	Description                     string
+}
+
+func (q *Queries) UpdateApplication(ctx context.Context, arg UpdateApplicationParams) (Application, error) {
+	row := q.db.QueryRow(ctx, updateApplication,
+		arg.ID,
+		arg.UserID,
+		arg.UpdateTitle,
+		arg.Title,
+		arg.UpdateCompanyName,
+		arg.CompanyName,
+		arg.UpdateCategory,
+		arg.Category,
+		arg.UpdateJobType,
+		arg.JobType,
+		arg.UpdateCandidateRequiredLocation,
+		arg.CandidateRequiredLocation,
+		arg.UpdateSalaryText,
+		arg.SalaryText,
+		arg.UpdateExternalUrl,
+		arg.ExternalUrl,
+		arg.UpdatePublicationDate,
+		arg.PublicationDate,
+		arg.UpdateDescription,
+		arg.Description,
+	)
+	var i Application
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Source,
+		&i.ExternalID,
+		&i.Title,
+		&i.CompanyName,
+		&i.Category,
+		&i.JobType,
+		&i.CandidateRequiredLocation,
+		&i.SalaryText,
+		&i.ExternalUrl,
+		&i.PublicationDate,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateApplicationStatus = `-- name: UpdateApplicationStatus :one
+UPDATE applications
+SET status = $3, updated_at = now()
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, source, external_id, title, company_name, category,
+          job_type, candidate_required_location, salary_text, external_url,
+          publication_date, description, status, created_at, updated_at
+`
+
+type UpdateApplicationStatusParams struct {
+	ID     pgtype.UUID
+	UserID pgtype.UUID
+	Status string
+}
+
+func (q *Queries) UpdateApplicationStatus(ctx context.Context, arg UpdateApplicationStatusParams) (Application, error) {
+	row := q.db.QueryRow(ctx, updateApplicationStatus, arg.ID, arg.UserID, arg.Status)
+	var i Application
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Source,
+		&i.ExternalID,
+		&i.Title,
+		&i.CompanyName,
+		&i.Category,
+		&i.JobType,
+		&i.CandidateRequiredLocation,
+		&i.SalaryText,
+		&i.ExternalUrl,
+		&i.PublicationDate,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
