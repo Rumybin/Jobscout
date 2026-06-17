@@ -1,37 +1,167 @@
 # JobScout
 
-Remote-first tech job discovery and saved-job tracking API built with Go.
+JobScout is a remote-first tech job discovery and saved-job tracking API built with Go. It helps users search external remote job listings, save interesting roles, track application status, add simple notes, and view basic saved-job analytics.
 
-## Prerequisites
+This repository is API-only for v1. A frontend may be added later, but the backend is kept modular enough to support one without a major rewrite.
 
-- Go 1.22+
+## Features
+
+- User registration, login, JWT authentication, and `GET /me`.
+- Remote job search through the Remotive Public API.
+- Normalized job search responses for external listings.
+- Saved applications for external jobs and manual entries.
+- User-scoped list, detail, partial update, delete, and status update operations.
+- Simple application notes.
+- Basic analytics summary for saved jobs.
+
+## Tech Stack
+
+- Go
+- Chi router
+- PostgreSQL
+- sqlc
+- golang-migrate compatible SQL migrations
+- JWT authentication
+- bcrypt password hashing
+- Docker Compose for local PostgreSQL
+
+## Requirements
+
+- Go 1.26.4 or compatible
 - Docker and Docker Compose
+- `sqlc` when regenerating database query code
+- A PostgreSQL migration runner, such as `migrate`, when applying migrations outside Docker/database bootstrapping
 
 ## Quick Start
 
+Copy the example environment file:
+
 ```bash
-# Copy environment configuration
 cp env.example .env
-
-# Start PostgreSQL
-docker compose up -d
-
-# Run the API server
-go run ./cmd/api
-
-# Health check
-curl http://localhost:8080/health
 ```
 
-## Useful Commands
+Start PostgreSQL:
 
 ```bash
-go run ./cmd/api      # Start the server
-go test ./...          # Run all tests
-docker compose up -d   # Start PostgreSQL
-docker compose down    # Stop PostgreSQL
+docker compose up -d
+```
+
+Apply database migrations with your migration runner. Example:
+
+```bash
+migrate -path migrations -database "$DATABASE_URL" up
+```
+
+Run the API:
+
+```bash
+go run ./cmd/api
+```
+
+Check the server:
+
+```bash
+curl http://localhost:8080/health
 ```
 
 ## Environment Variables
 
-See `env.example` for the full list of required environment variables.
+`env.example` documents the required configuration:
+
+- `APP_ENV`
+- `APP_PORT`
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `REMOTIVE_BASE_URL`
+
+Never commit real secrets. Use a strong `JWT_SECRET` outside local development.
+
+## API Overview
+
+Public endpoints:
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /health`
+
+Protected endpoints require `Authorization: Bearer <token>`:
+
+- `GET /me`
+- `GET /jobs/search`
+- `POST /applications`
+- `GET /applications`
+- `GET /applications/{id}`
+- `PATCH /applications/{id}`
+- `DELETE /applications/{id}`
+- `PATCH /applications/{id}/status`
+- `POST /applications/{id}/notes`
+- `GET /applications/{id}/notes`
+- `DELETE /notes/{id}`
+- `GET /analytics/summary`
+
+## Analytics Summary
+
+`GET /analytics/summary` returns saved-job analytics for the authenticated user:
+
+```json
+{
+  "total_saved_jobs": 12,
+  "by_status": {
+    "Wishlist": 4,
+    "Applied": 3
+  },
+  "by_source": {
+    "remotive": 10,
+    "manual": 2
+  },
+  "by_category": {
+    "Software Development": 8,
+    "Uncategorized": 1
+  },
+  "saved_per_month": [
+    {
+      "month": "2026-06",
+      "count": 5
+    }
+  ]
+}
+```
+
+## Development Commands
+
+```bash
+go run ./cmd/api
+go test ./...
+go vet ./...
+go build ./...
+go test -race -count=1 ./...
+sqlc generate
+docker compose up -d
+docker compose down
+```
+
+If `sqlc` is not installed locally, you can run:
+
+```bash
+go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
+```
+
+## Project Structure
+
+```text
+cmd/api                 API entry point
+internal/auth           authentication handlers, services, JWT helpers
+internal/middleware     request middleware
+internal/jobsource      external job source adapter
+internal/jobs           job search API
+internal/applications   saved jobs, statuses, and notes
+internal/analytics      saved-job analytics
+internal/database       database connection and sqlc generated code
+internal/httputil       shared HTTP response and error helpers
+migrations              PostgreSQL migrations
+sql                     sqlc query definitions
+```
+
+## Notes
+
+JobScout uses Remotive as the only external job source in v1. External job listings should be treated as active external listings, not guaranteed real-time openings. Users should verify and apply through the original external job URL.

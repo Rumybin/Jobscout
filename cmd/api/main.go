@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"jobscout/internal/analytics"
 	"jobscout/internal/applications"
 	"jobscout/internal/auth"
 	"jobscout/internal/config"
@@ -44,6 +45,9 @@ func main() {
 	// Applications
 	appSvc := applications.NewService(pool)
 	appHandler := applications.NewHandler(appSvc)
+
+	analyticsSvc := analytics.NewService(pool)
+	analyticsHandler := analytics.NewHandler(analyticsSvc)
 
 	r := chi.NewRouter()
 
@@ -88,8 +92,13 @@ func main() {
 				r.Patch("/", appHandler.Update)
 				r.Delete("/", appHandler.Delete)
 				r.Patch("/status", appHandler.UpdateStatus)
+				r.Post("/notes", appHandler.CreateNote)
+				r.Get("/notes", appHandler.ListNotes)
 			})
 		})
+		r.Delete("/notes/{id}", appHandler.DeleteNote)
+
+		r.Get("/analytics/summary", analyticsHandler.Summary)
 	})
 
 	// Graceful shutdown

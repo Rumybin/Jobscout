@@ -22,6 +22,9 @@ type mockService struct {
 	updateFn       func(ctx context.Context, userID, appID string, req UpdateApplicationRequest) (*ApplicationResponse, error)
 	deleteFn       func(ctx context.Context, userID, appID string) error
 	updateStatusFn func(ctx context.Context, userID, appID, newStatus string) (*ApplicationResponse, error)
+	createNoteFn   func(ctx context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error)
+	listNotesFn    func(ctx context.Context, userID, appID string) ([]*NoteResponse, error)
+	deleteNoteFn   func(ctx context.Context, userID, noteID string) error
 }
 
 func (m *mockService) SaveApplication(ctx context.Context, userID string, req SaveApplicationRequest) (*ApplicationResponse, error) {
@@ -46,6 +49,18 @@ func (m *mockService) DeleteApplication(ctx context.Context, userID, appID strin
 
 func (m *mockService) UpdateApplicationStatus(ctx context.Context, userID, appID, newStatus string) (*ApplicationResponse, error) {
 	return m.updateStatusFn(ctx, userID, appID, newStatus)
+}
+
+func (m *mockService) CreateApplicationNote(ctx context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error) {
+	return m.createNoteFn(ctx, userID, appID, req)
+}
+
+func (m *mockService) ListApplicationNotes(ctx context.Context, userID, appID string) ([]*NoteResponse, error) {
+	return m.listNotesFn(ctx, userID, appID)
+}
+
+func (m *mockService) DeleteApplicationNote(ctx context.Context, userID, noteID string) error {
+	return m.deleteNoteFn(ctx, userID, noteID)
 }
 
 func TestHandler_Save_Success_External(t *testing.T) {
@@ -575,5 +590,254 @@ func TestHandler_Delete_Unauthorized(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestHandler_CreateNote_Success(t *testing.T) {
+	svc := &mockService{
+		createNoteFn: func(_ context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error) {
+			return &NoteResponse{
+				ID:            "note-1",
+				ApplicationID: appID,
+				UserID:        userID,
+				Body:          req.Body,
+				CreatedAt:     "2025-01-01T00:00:00Z",
+			}, nil
+		},
+	}
+	h := NewHandler(svc)
+
+	body := CreateNoteRequest{Body: "Follow up next week"}
+	payload, _ := json.Marshal(body)
+
+	req := newRequestWithChiParams(http.MethodPost, "/applications/app-1/notes", payload, "user-1")
+	req = setupChiContext(req, map[string]string{"id": "app-1"})
+
+	rr := httptest.NewRecorder()
+	h.CreateNote(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp NoteResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.ApplicationID != "app-1" || resp.Body != "Follow up next week" {
+		t.Fatalf("unexpected response: %+v", resp)
+	}
+}
+
+func TestHandler_CreateNote_Unauthorized(t *testing.T) {
+	svc := &mockService{
+		createNoteFn: func(_ context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error) {
+			return nil, nil
+		},
+	}
+	h := NewHandler(svc)
+
+	body := CreateNoteRequest{Body: "Follow up next week"}
+	payload, _ := json.Marshal(body)
+
+	req := newRequestWithChiParams(http.MethodPost, "/applications/app-1/notes", payload, "")
+	req = setupChiContext(req, map[string]string{"id": "app-1"})
+
+	rr := httptest.NewRecorder()
+	h.CreateNote(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestHandler_CreateNote_InvalidJSON(t *testing.T) {
+	svc := &mockService{
+		createNoteFn: func(_ context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error) {
+			return nil, nil
+		},
+	}
+	h := NewHandler(svc)
+
+	req := newRequestWithChiParams(http.MethodPost, "/applications/app-1/notes", []byte(`{invalid}`), "user-1")
+	req = setupChiContext(req, map[string]string{"id": "app-1"})
+
+	rr := httptest.NewRecorder()
+	h.CreateNote(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestHandler_CreateNote_EmptyBody(t *testing.T) {
+	svc := &mockService{
+		createNoteFn: func(_ context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error) {
+			return nil, httputil.ValidationError{Message: "body is required"}
+		},
+	}
+	h := NewHandler(svc)
+
+	body := CreateNoteRequest{Body: ""}
+	payload, _ := json.Marshal(body)
+
+	req := newRequestWithChiParams(http.MethodPost, "/applications/app-1/notes", payload, "user-1")
+	req = setupChiContext(req, map[string]string{"id": "app-1"})
+
+	rr := httptest.NewRecorder()
+	h.CreateNote(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "body is required") {
+		t.Fatalf("expected validation error about missing body, got: %s", rr.Body.String())
+	}
+}
+
+func TestHandler_CreateNote_ApplicationNotFound(t *testing.T) {
+	svc := &mockService{
+		createNoteFn: func(_ context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error) {
+			return nil, httputil.NotFoundError{Message: "application not found"}
+		},
+	}
+	h := NewHandler(svc)
+
+	body := CreateNoteRequest{Body: "Follow up next week"}
+	payload, _ := json.Marshal(body)
+
+	req := newRequestWithChiParams(http.MethodPost, "/applications/missing/notes", payload, "user-1")
+	req = setupChiContext(req, map[string]string{"id": "missing"})
+
+	rr := httptest.NewRecorder()
+	h.CreateNote(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestHandler_ListNotes_Success(t *testing.T) {
+	svc := &mockService{
+		listNotesFn: func(_ context.Context, userID, appID string) ([]*NoteResponse, error) {
+			return []*NoteResponse{
+				{ID: "note-1", ApplicationID: appID, UserID: userID, Body: "First note", CreatedAt: "2025-01-02T00:00:00Z"},
+				{ID: "note-2", ApplicationID: appID, UserID: userID, Body: "Second note", CreatedAt: "2025-01-01T00:00:00Z"},
+			}, nil
+		},
+	}
+	h := NewHandler(svc)
+
+	req := newRequestWithChiParams(http.MethodGet, "/applications/app-1/notes", nil, "user-1")
+	req = setupChiContext(req, map[string]string{"id": "app-1"})
+
+	rr := httptest.NewRecorder()
+	h.ListNotes(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var notes []*NoteResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &notes); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(notes) != 2 {
+		t.Fatalf("expected 2 notes, got %d", len(notes))
+	}
+}
+
+func TestHandler_ListNotes_Unauthorized(t *testing.T) {
+	svc := &mockService{
+		listNotesFn: func(_ context.Context, userID, appID string) ([]*NoteResponse, error) {
+			return nil, nil
+		},
+	}
+	h := NewHandler(svc)
+
+	req := newRequestWithChiParams(http.MethodGet, "/applications/app-1/notes", nil, "")
+	req = setupChiContext(req, map[string]string{"id": "app-1"})
+
+	rr := httptest.NewRecorder()
+	h.ListNotes(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestHandler_ListNotes_ApplicationNotFound(t *testing.T) {
+	svc := &mockService{
+		listNotesFn: func(_ context.Context, userID, appID string) ([]*NoteResponse, error) {
+			return nil, httputil.NotFoundError{Message: "application not found"}
+		},
+	}
+	h := NewHandler(svc)
+
+	req := newRequestWithChiParams(http.MethodGet, "/applications/missing/notes", nil, "user-1")
+	req = setupChiContext(req, map[string]string{"id": "missing"})
+
+	rr := httptest.NewRecorder()
+	h.ListNotes(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+}
+
+func TestHandler_DeleteNote_Success(t *testing.T) {
+	svc := &mockService{
+		deleteNoteFn: func(_ context.Context, userID, noteID string) error {
+			return nil
+		},
+	}
+	h := NewHandler(svc)
+
+	req := newRequestWithChiParams(http.MethodDelete, "/notes/note-1", nil, "user-1")
+	req = setupChiContext(req, map[string]string{"id": "note-1"})
+
+	rr := httptest.NewRecorder()
+	h.DeleteNote(rr, req)
+
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestHandler_DeleteNote_Unauthorized(t *testing.T) {
+	svc := &mockService{
+		deleteNoteFn: func(_ context.Context, userID, noteID string) error {
+			return nil
+		},
+	}
+	h := NewHandler(svc)
+
+	req := newRequestWithChiParams(http.MethodDelete, "/notes/note-1", nil, "")
+	req = setupChiContext(req, map[string]string{"id": "note-1"})
+
+	rr := httptest.NewRecorder()
+	h.DeleteNote(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestHandler_DeleteNote_NotFound(t *testing.T) {
+	svc := &mockService{
+		deleteNoteFn: func(_ context.Context, userID, noteID string) error {
+			return httputil.NotFoundError{Message: "note not found"}
+		},
+	}
+	h := NewHandler(svc)
+
+	req := newRequestWithChiParams(http.MethodDelete, "/notes/missing", nil, "user-1")
+	req = setupChiContext(req, map[string]string{"id": "missing"})
+
+	rr := httptest.NewRecorder()
+	h.DeleteNote(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
 	}
 }

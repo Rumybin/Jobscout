@@ -315,6 +315,96 @@ func (s *Service) UpdateApplicationStatus(ctx context.Context, userID, appID str
 	return mapApplicationToResponse(app), nil
 }
 
+// CreateApplicationNote adds a note to an application owned by the user.
+func (s *Service) CreateApplicationNote(ctx context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error) {
+	var userUUID, appUUID pgtype.UUID
+	if err := userUUID.Scan(userID); err != nil {
+		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+	if err := appUUID.Scan(appID); err != nil {
+		return nil, httputil.ValidationError{Message: "invalid application ID"}
+	}
+
+	body := strings.TrimSpace(req.Body)
+	if body == "" {
+		return nil, httputil.ValidationError{Message: "body is required"}
+	}
+
+	note, err := s.queries.CreateApplicationNote(ctx, sqlc.CreateApplicationNoteParams{
+		ApplicationID: appUUID,
+		UserID:        userUUID,
+		Body:          body,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, httputil.NotFoundError{Message: "application not found"}
+		}
+		return nil, fmt.Errorf("failed to create application note: %w", err)
+	}
+
+	return mapNoteToResponse(note), nil
+}
+
+// ListApplicationNotes returns notes for an application owned by the user.
+func (s *Service) ListApplicationNotes(ctx context.Context, userID, appID string) ([]*NoteResponse, error) {
+	var userUUID, appUUID pgtype.UUID
+	if err := userUUID.Scan(userID); err != nil {
+		return nil, fmt.Errorf("invalid user ID: %w", err)
+	}
+	if err := appUUID.Scan(appID); err != nil {
+		return nil, httputil.ValidationError{Message: "invalid application ID"}
+	}
+
+	if _, err := s.queries.GetApplicationByID(ctx, sqlc.GetApplicationByIDParams{
+		ID:     appUUID,
+		UserID: userUUID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, httputil.NotFoundError{Message: "application not found"}
+		}
+		return nil, fmt.Errorf("failed to get application: %w", err)
+	}
+
+	notes, err := s.queries.GetApplicationNotes(ctx, sqlc.GetApplicationNotesParams{
+		ApplicationID: appUUID,
+		UserID:        userUUID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list application notes: %w", err)
+	}
+
+	responses := make([]*NoteResponse, len(notes))
+	for i, note := range notes {
+		responses[i] = mapNoteToResponse(note)
+	}
+
+	return responses, nil
+}
+
+// DeleteApplicationNote deletes a note owned by the user.
+func (s *Service) DeleteApplicationNote(ctx context.Context, userID, noteID string) error {
+	var userUUID, noteUUID pgtype.UUID
+	if err := userUUID.Scan(userID); err != nil {
+		return fmt.Errorf("invalid user ID: %w", err)
+	}
+	if err := noteUUID.Scan(noteID); err != nil {
+		return httputil.ValidationError{Message: "invalid note ID"}
+	}
+
+	_, err := s.queries.DeleteApplicationNote(ctx, sqlc.DeleteApplicationNoteParams{
+		ID:     noteUUID,
+		UserID: userUUID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return httputil.NotFoundError{Message: "note not found"}
+		}
+		return fmt.Errorf("failed to delete application note: %w", err)
+	}
+
+	return nil
+}
+
 func mapApplicationToResponse(app sqlc.Application) *ApplicationResponse {
 	resp := &ApplicationResponse{
 		ID:                        app.ID.String(),
@@ -339,6 +429,16 @@ func mapApplicationToResponse(app sqlc.Application) *ApplicationResponse {
 	}
 
 	return resp
+}
+
+func mapNoteToResponse(note sqlc.ApplicationNote) *NoteResponse {
+	return &NoteResponse{
+		ID:            note.ID.String(),
+		ApplicationID: note.ApplicationID.String(),
+		UserID:        note.UserID.String(),
+		Body:          note.Body,
+		CreatedAt:     note.CreatedAt.Time.Format(time.RFC3339),
+	}
 }
 
 func strPtr(s string) *string {

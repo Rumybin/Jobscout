@@ -27,6 +27,14 @@ type Application struct {
 	UpdatedAt                 pgtype.Timestamptz
 }
 
+type ApplicationNote struct {
+	ID            pgtype.UUID
+	ApplicationID pgtype.UUID
+	UserID        pgtype.UUID
+	Body          string
+	CreatedAt     pgtype.Timestamptz
+}
+
 type User struct {
 	ID           pgtype.UUID
 	Email        string

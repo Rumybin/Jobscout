@@ -62,3 +62,17 @@ type UpdateApplicationRequest struct {
 type UpdateStatusRequest struct {
 	Status string `json:"status"`
 }
+
+// CreateNoteRequest is the expected JSON body for POST /applications/{id}/notes.
+type CreateNoteRequest struct {
+	Body string `json:"body"`
+}
+
+// NoteResponse is returned by note endpoints.
+type NoteResponse struct {
+	ID            string `json:"id"`
+	ApplicationID string `json:"application_id"`
+	UserID        string `json:"user_id"`
+	Body          string `json:"body"`
+	CreatedAt     string `json:"created_at"`
+}

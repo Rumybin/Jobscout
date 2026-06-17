@@ -20,6 +20,9 @@ type ApplicationService interface {
 	UpdateApplication(ctx context.Context, userID, appID string, req UpdateApplicationRequest) (*ApplicationResponse, error)
 	DeleteApplication(ctx context.Context, userID, appID string) error
 	UpdateApplicationStatus(ctx context.Context, userID, appID string, newStatus string) (*ApplicationResponse, error)
+	CreateApplicationNote(ctx context.Context, userID, appID string, req CreateNoteRequest) (*NoteResponse, error)
+	ListApplicationNotes(ctx context.Context, userID, appID string) ([]*NoteResponse, error)
+	DeleteApplicationNote(ctx context.Context, userID, noteID string) error
 }
 
 // Handler holds HTTP handlers for application endpoints.
@@ -214,4 +217,109 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.WriteJSON(w, http.StatusOK, resp)
+}
+
+// CreateNote handles POST /applications/{id}/notes.
+func (h *Handler) CreateNote(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID == "" {
+		httputil.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	appID := chi.URLParam(r, "id")
+	if appID == "" {
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "missing application id"})
+		return
+	}
+
+	var req CreateNoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	resp, err := h.svc.CreateApplicationNote(r.Context(), userID, appID, req)
+	if err != nil {
+		var valErr httputil.ValidationError
+		if errors.As(err, &valErr) {
+			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": valErr.Message})
+			return
+		}
+		var notFoundErr httputil.NotFoundError
+		if errors.As(err, &notFoundErr) {
+			httputil.WriteJSON(w, http.StatusNotFound, map[string]string{"error": notFoundErr.Message})
+			return
+		}
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	httputil.WriteJSON(w, http.StatusCreated, resp)
+}
+
+// ListNotes handles GET /applications/{id}/notes.
+func (h *Handler) ListNotes(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID == "" {
+		httputil.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	appID := chi.URLParam(r, "id")
+	if appID == "" {
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "missing application id"})
+		return
+	}
+
+	notes, err := h.svc.ListApplicationNotes(r.Context(), userID, appID)
+	if err != nil {
+		var valErr httputil.ValidationError
+		if errors.As(err, &valErr) {
+			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": valErr.Message})
+			return
+		}
+		var notFoundErr httputil.NotFoundError
+		if errors.As(err, &notFoundErr) {
+			httputil.WriteJSON(w, http.StatusNotFound, map[string]string{"error": notFoundErr.Message})
+			return
+		}
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	httputil.WriteJSON(w, http.StatusOK, notes)
+}
+
+// DeleteNote handles DELETE /notes/{id}.
+func (h *Handler) DeleteNote(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID == "" {
+		httputil.WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	noteID := chi.URLParam(r, "id")
+	if noteID == "" {
+		httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "missing note id"})
+		return
+	}
+
+	err := h.svc.DeleteApplicationNote(r.Context(), userID, noteID)
+	if err != nil {
+		var valErr httputil.ValidationError
+		if errors.As(err, &valErr) {
+			httputil.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": valErr.Message})
+			return
+		}
+		var notFoundErr httputil.NotFoundError
+		if errors.As(err, &notFoundErr) {
+			httputil.WriteJSON(w, http.StatusNotFound, map[string]string{"error": notFoundErr.Message})
+			return
+		}
+		httputil.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
