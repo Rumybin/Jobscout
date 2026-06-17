@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,16 +40,37 @@ func NewService(pool *pgxpool.Pool) *Service {
 }
 
 // SaveApplication saves a new application for the user.
-// If the application already exists (unique constraint violation), it returns a ConflictError.
+//
+// Behavior depends on source:
+//   - If source is empty or "manual", the application is treated as a manual entry.
+//     A UUID is auto-generated for external_id to avoid unique constraint conflicts.
+//     Only title and company_name are required.
+//   - For all other sources (e.g. "remotive"), source and external_id must be provided
+//     and the existing duplicate check via unique constraint applies.
+//
+// Returns ConflictError if a duplicate is detected (non-manual sources only).
 func (s *Service) SaveApplication(ctx context.Context, userID string, req SaveApplicationRequest) (*ApplicationResponse, error) {
-	// Validate required fields
+	// Trim and detect mode
 	req.Source = strings.TrimSpace(req.Source)
 	req.Title = strings.TrimSpace(req.Title)
 	req.CompanyName = strings.TrimSpace(req.CompanyName)
 
-	if req.Source == "" {
-		return nil, httputil.ValidationError{Message: "source is required"}
+	isManual := req.Source == "" || req.Source == "manual"
+
+	if isManual {
+		// Manual entry: auto-set source and generate a unique external_id
+		if req.Source == "" {
+			req.Source = "manual"
+		}
+		req.ExternalID = uuid.New().String()
+	} else {
+		// External source: external_id is required for dedup
+		if req.ExternalID == "" {
+			return nil, httputil.ValidationError{Message: "external_id is required for non-manual sources"}
+		}
 	}
+
+	// Validate required fields for all types
 	if req.Title == "" {
 		return nil, httputil.ValidationError{Message: "title is required"}
 	}
