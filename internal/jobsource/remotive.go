@@ -96,7 +96,7 @@ func (r *RemotiveSource) Search(ctx context.Context, filters SearchFilters) ([]N
 	normalized := make([]NormalizedJob, 0, len(remotiveResp.Jobs))
 	for _, j := range remotiveResp.Jobs {
 		normalized = append(normalized, NormalizedJob{
-			Source:                     "remotive",
+			Source:                    "remotive",
 			ExternalID:                j.ID,
 			Title:                     j.Title,
 			CompanyName:               j.CompanyName,

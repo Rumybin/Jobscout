@@ -4,7 +4,7 @@ import "context"
 
 // NormalizedJob represents a job listing normalized from any external source.
 type NormalizedJob struct {
-	Source                     string `json:"source"`
+	Source                    string `json:"source"`
 	ExternalID                string `json:"external_id"`
 	Title                     string `json:"title"`
 	CompanyName               string `json:"company_name"`

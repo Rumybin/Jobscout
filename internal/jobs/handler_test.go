@@ -23,7 +23,7 @@ func (m *mockSource) Search(_ context.Context, _ jobsource.SearchFilters) ([]job
 func TestSearchHandler_Success(t *testing.T) {
 	normalizedJobs := []jobsource.NormalizedJob{
 		{
-			Source:                     "remotive",
+			Source:                    "remotive",
 			ExternalID:                "123",
 			Title:                     "Backend Engineer",
 			CompanyName:               "TechCorp",
