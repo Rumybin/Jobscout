@@ -1,6 +1,10 @@
 package applications
 
 // SaveApplicationRequest is the expected JSON body for POST /applications.
+//
+// For external jobs (e.g. from Remotive), provide source and external_id.
+// For manual entries (e.g. from career pages, networking), leave source empty
+// or set it to "manual". The server will auto-generate external_id.
 type SaveApplicationRequest struct {
 	Source                     string  `json:"source"`
 	ExternalID                 string  `json:"external_id"`
