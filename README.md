@@ -173,6 +173,54 @@ go test -bench=. ./internal/auth ./internal/httputil
 
 GitHub Actions provides PostgreSQL and sets `TEST_DATABASE_URL`, so CI runs the DB-backed tests automatically.
 
+## Docker
+
+Build the API image:
+
+```bash
+docker build -t jobscout-api .
+```
+
+Run the API container:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e APP_ENV=production \
+  -e APP_PORT=8080 \
+  -e DATABASE_URL="postgres://user:password@host:5432/jobscout?sslmode=require" \
+  -e JWT_SECRET="replace-with-a-strong-secret" \
+  -e REMOTIVE_BASE_URL="https://remotive.com/api/remote-jobs" \
+  jobscout-api
+```
+
+For local Docker-to-host PostgreSQL on Linux, add the host gateway mapping:
+
+```bash
+docker run --rm -p 8080:8080 \
+  --add-host=host.docker.internal:host-gateway \
+  -e DATABASE_URL="postgres://jobscout:jobscout@host.docker.internal:5432/jobscout?sslmode=disable" \
+  -e JWT_SECRET="local-test-secret" \
+  jobscout-api
+```
+
+Check the container:
+
+```bash
+curl http://localhost:8080/health
+```
+
+## Deployment Notes
+
+JobScout is ready for Docker-first deployment on platforms such as Render, Railway, Fly.io, or a VPS. Configure all required environment variables in the hosting platform; do not bake secrets into the image.
+
+Run database migrations separately from app startup:
+
+```bash
+migrate -path migrations -database "$DATABASE_URL" up
+```
+
+This keeps schema changes explicit and lets a deployment stop before serving traffic if migration fails.
+
 ## Project Structure
 
 ```text

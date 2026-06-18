@@ -1,0 +1,12 @@
+.git
+.github
+.env
+PROGRESS.md
+AGENT.md
+CODE_STANDARDS.md
+bin/
+vendor/
+*.exe
+*.test
+coverage.out
+tmp/
