@@ -1,43 +1,65 @@
-# JobScout
+<p align="center">
+  <h1 align="center">JobScout</h1>
+  <p align="center">
+    Remote-first tech job discovery and saved-application tracking API.
+  </p>
+</p>
 
-JobScout is a remote-first tech job discovery and saved-job tracking API built with Go. It helps users search external remote job listings, save interesting roles, track application status, add simple notes, and view basic saved-job analytics.
+<p align="center">
+  <a href="https://github.com/Rumybin/Jobscout/actions">
+    <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Rumybin/Jobscout/ci.yml?branch=main&label=CI&style=flat-square">
+  </a>
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.26.4-00ADD8?style=flat-square&logo=go&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white">
+  <img alt="API" src="https://img.shields.io/badge/API-only_v1-111827?style=flat-square">
+</p>
 
-This repository is API-only for v1. A frontend may be added later, but the backend is kept modular enough to support one without a major rewrite.
+## Overview
+
+JobScout helps users discover remote tech jobs, save interesting roles, track application status, add simple notes, and view basic saved-job analytics. It is an API-only v1 backend built to support a future frontend without a major rewrite.
+
+The first external job source is the Remotive Public API. JobScout stores saved jobs as snapshots so users keep their own application records even if an external listing changes later.
 
 ## Features
 
-- User registration, login, JWT authentication, and `GET /me`.
-- Remote job search through the Remotive Public API.
-- Normalized job search responses for external listings.
-- Saved applications for external jobs and manual entries.
-- User-scoped list, detail, partial update, delete, and status update operations.
-- Simple application notes.
-- Basic analytics summary for saved jobs.
+- JWT auth: register, login, and `GET /me`.
+- Remote job search with normalized Remotive results.
+- Save external jobs or create manual applications.
+- User-scoped list, detail, update, delete, and status update.
+- Simple notes per saved application.
+- Analytics summary by status, source, category, and saved month.
+- DB-backed service tests and GitHub Actions CI.
+- Docker-ready production image.
 
 ## Tech Stack
 
-- Go
-- Chi router
-- PostgreSQL
-- sqlc
-- golang-migrate compatible SQL migrations
-- JWT authentication
-- bcrypt password hashing
-- Docker Compose for local PostgreSQL
-
-## Requirements
-
-- Go 1.26.4 or compatible
-- Docker and Docker Compose
-- `sqlc` when regenerating database query code
-- A PostgreSQL migration runner, such as `migrate`, when applying migrations outside Docker/database bootstrapping
+| Area | Choice |
+| --- | --- |
+| Language | Go |
+| Router | Chi |
+| Database | PostgreSQL |
+| SQL access | sqlc |
+| Migrations | golang-migrate compatible SQL |
+| Auth | JWT + bcrypt |
+| External jobs | Remotive Public API |
+| Local infra | Docker Compose |
+| Tests | Go testing, httptest, DB-backed integration tests |
 
 ## Quick Start
 
-Copy the example environment file:
+Clone and enter the repo:
+
+```bash
+git clone https://github.com/Rumybin/Jobscout.git
+cd Jobscout
+```
+
+Copy environment config:
 
 ```bash
 cp env.example .env
+export DATABASE_URL="postgres://jobscout:jobscout@localhost:5432/jobscout?sslmode=disable"
 ```
 
 Start PostgreSQL:
@@ -46,10 +68,18 @@ Start PostgreSQL:
 docker compose up -d
 ```
 
-Apply database migrations with your migration runner. Example:
+Apply migrations:
 
 ```bash
 migrate -path migrations -database "$DATABASE_URL" up
+```
+
+If `migrate` is not installed, apply the SQL files manually:
+
+```bash
+docker compose exec -T db psql -U jobscout -d jobscout -f - < migrations/000001_create_users.up.sql
+docker compose exec -T db psql -U jobscout -d jobscout -f - < migrations/000002_applications_table.up.sql
+docker compose exec -T db psql -U jobscout -d jobscout -f - < migrations/000003_application_notes_table.up.sql
 ```
 
 Run the API:
@@ -58,124 +88,152 @@ Run the API:
 go run ./cmd/api
 ```
 
-Check the server:
+Health check:
 
 ```bash
 curl http://localhost:8080/health
 ```
 
-## Environment Variables
+Expected response:
 
-`env.example` documents the required configuration:
+```json
+{"status":"ok"}
+```
 
-- `APP_ENV`
-- `APP_PORT`
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `REMOTIVE_BASE_URL`
+## Environment
 
-Never commit real secrets. Use a strong `JWT_SECRET` outside local development.
+`env.example` documents the required variables:
+
+| Variable | Description |
+| --- | --- |
+| `APP_ENV` | Runtime environment, for example `development` or `production`. |
+| `APP_PORT` | HTTP port. Defaults to `8080`. |
+| `DATABASE_URL` | PostgreSQL connection string. |
+| `JWT_SECRET` | Secret used to sign JWTs. Use a strong value in production. |
+| `REMOTIVE_BASE_URL` | Remotive API endpoint. |
+
+Never commit real secrets.
 
 ## API Overview
 
 Public endpoints:
 
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /health`
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Health check. |
+| `POST` | `/auth/register` | Create a user and return a token. |
+| `POST` | `/auth/login` | Authenticate and return a token. |
 
 Protected endpoints require `Authorization: Bearer <token>`:
 
-- `GET /me`
-- `GET /jobs/search`
-- `POST /applications`
-- `GET /applications`
-- `GET /applications/{id}`
-- `PATCH /applications/{id}`
-- `DELETE /applications/{id}`
-- `PATCH /applications/{id}/status`
-- `POST /applications/{id}/notes`
-- `GET /applications/{id}/notes`
-- `DELETE /notes/{id}`
-- `GET /analytics/summary`
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/me` | Current user profile. |
+| `GET` | `/jobs/search` | Search remote jobs. |
+| `POST` | `/applications` | Save external job or create manual application. |
+| `GET` | `/applications` | List saved applications. |
+| `GET` | `/applications/{id}` | Get one saved application. |
+| `PATCH` | `/applications/{id}` | Update editable application fields. |
+| `DELETE` | `/applications/{id}` | Delete an application. |
+| `PATCH` | `/applications/{id}/status` | Update status only. |
+| `POST` | `/applications/{id}/notes` | Add a note. |
+| `GET` | `/applications/{id}/notes` | List notes for an application. |
+| `DELETE` | `/notes/{id}` | Delete a note. |
+| `GET` | `/analytics/summary` | Saved-job analytics summary. |
 
-## Analytics Summary
+## Example Flow
 
-`GET /analytics/summary` returns saved-job analytics for the authenticated user:
+Register:
+
+```bash
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"secret123"}'
+```
+
+Login and store token:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"secret123"}' \
+  | sed -E 's/.*"token":"([^"]+)".*/\1/')
+```
+
+Search jobs:
+
+```bash
+curl "http://localhost:8080/jobs/search?keyword=backend&limit=2" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Save a manual application:
+
+```bash
+curl -X POST http://localhost:8080/applications \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Backend Developer","company_name":"Example Co"}'
+```
+
+Get analytics:
+
+```bash
+curl http://localhost:8080/analytics/summary \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Example analytics response:
 
 ```json
 {
-  "total_saved_jobs": 12,
+  "total_saved_jobs": 1,
   "by_status": {
-    "Wishlist": 4,
-    "Applied": 3
+    "Wishlist": 1
   },
   "by_source": {
-    "remotive": 10,
-    "manual": 2
+    "manual": 1
   },
   "by_category": {
-    "Software Development": 8,
     "Uncategorized": 1
   },
   "saved_per_month": [
     {
       "month": "2026-06",
-      "count": 5
+      "count": 1
     }
   ]
 }
 ```
 
-## Development Commands
+## Testing
 
-```bash
-go run ./cmd/api
-go test ./...
-go vet ./...
-go build ./...
-go test -race -count=1 ./...
-go test -bench=. ./internal/auth ./internal/httputil
-sqlc generate
-docker compose up -d
-docker compose down
-```
-
-If `sqlc` is not installed locally, you can run:
-
-```bash
-go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
-```
-
-## Testing Strategy
-
-The default test command is safe for local development:
+Default local test run:
 
 ```bash
 go test ./...
 ```
 
-Service-layer integration tests run only when `TEST_DATABASE_URL` is set. They create an isolated PostgreSQL schema, apply migrations, run the test, and drop the schema during cleanup.
-
-To run the full local suite with database-backed service tests:
+Full DB-backed test run:
 
 ```bash
 docker compose up -d
 export TEST_DATABASE_URL="postgres://jobscout:jobscout@localhost:5432/jobscout?sslmode=disable"
 go test -race -count=1 ./...
+docker compose down
 ```
 
-Run the lightweight benchmarks with:
+Benchmarks:
 
 ```bash
 go test -bench=. ./internal/auth ./internal/httputil
 ```
 
-GitHub Actions provides PostgreSQL and sets `TEST_DATABASE_URL`, so CI runs the DB-backed tests automatically.
+GitHub Actions starts PostgreSQL and sets `TEST_DATABASE_URL`, so CI runs DB-backed tests automatically.
 
 ## Docker
 
-Build the API image:
+Build the image:
 
 ```bash
 docker build -t jobscout-api .
@@ -193,7 +251,7 @@ docker run --rm -p 8080:8080 \
   jobscout-api
 ```
 
-For local Docker-to-host PostgreSQL on Linux, add the host gateway mapping:
+For local Docker-to-host PostgreSQL on Linux:
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -203,23 +261,24 @@ docker run --rm -p 8080:8080 \
   jobscout-api
 ```
 
-Check the container:
-
-```bash
-curl http://localhost:8080/health
-```
-
 ## Deployment Notes
 
-JobScout is ready for Docker-first deployment on platforms such as Render, Railway, Fly.io, or a VPS. Configure all required environment variables in the hosting platform; do not bake secrets into the image.
+JobScout is ready for Docker-first deployment on platforms such as Render, Railway, Fly.io, or a VPS.
 
-Run database migrations separately from app startup:
+Recommended production flow:
+
+1. Provision PostgreSQL.
+2. Set production environment variables in the hosting platform.
+3. Run migrations separately:
 
 ```bash
 migrate -path migrations -database "$DATABASE_URL" up
 ```
 
-This keeps schema changes explicit and lets a deployment stop before serving traffic if migration fails.
+4. Deploy the Docker image.
+5. Check `GET /health`.
+
+Migrations intentionally do not run automatically during app startup. This keeps schema changes explicit and lets deployment stop before serving traffic if migration fails.
 
 ## Project Structure
 
@@ -237,6 +296,14 @@ migrations              PostgreSQL migrations
 sql                     sqlc query definitions
 ```
 
+## Release
+
+Current release tag:
+
+```text
+v1.0.0
+```
+
 ## Notes
 
-JobScout uses Remotive as the only external job source in v1. External job listings should be treated as active external listings, not guaranteed real-time openings. Users should verify and apply through the original external job URL.
+Remotive results should be treated as active external listings, not guaranteed real-time openings. Users should verify and apply through the original external job URL.
