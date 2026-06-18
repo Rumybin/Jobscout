@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -92,5 +93,51 @@ func TestValidateToken_EmptyToken(t *testing.T) {
 	_, err := ValidateToken("", "secret")
 	if err == nil {
 		t.Fatal("expected error for empty token, got nil")
+	}
+}
+
+func TestValidateToken_Concurrent(t *testing.T) {
+	tokenStr, err := GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "test-secret")
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			claims, err := ValidateToken(tokenStr, "test-secret")
+			if err != nil {
+				t.Errorf("validate token: %v", err)
+				return
+			}
+			if claims.Email != "test@example.com" {
+				t.Errorf("expected test@example.com, got %q", claims.Email)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func BenchmarkGenerateToken(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		if _, err := GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "test-secret"); err != nil {
+			b.Fatalf("generate token: %v", err)
+		}
+	}
+}
+
+func BenchmarkValidateToken(b *testing.B) {
+	tokenStr, err := GenerateToken("550e8400-e29b-41d4-a716-446655440000", "test@example.com", "test-secret")
+	if err != nil {
+		b.Fatalf("generate token: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := ValidateToken(tokenStr, "test-secret"); err != nil {
+			b.Fatalf("validate token: %v", err)
+		}
 	}
 }

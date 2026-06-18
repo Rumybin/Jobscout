@@ -135,6 +135,7 @@ go test ./...
 go vet ./...
 go build ./...
 go test -race -count=1 ./...
+go test -bench=. ./internal/auth ./internal/httputil
 sqlc generate
 docker compose up -d
 docker compose down
@@ -145,6 +146,32 @@ If `sqlc` is not installed locally, you can run:
 ```bash
 go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
 ```
+
+## Testing Strategy
+
+The default test command is safe for local development:
+
+```bash
+go test ./...
+```
+
+Service-layer integration tests run only when `TEST_DATABASE_URL` is set. They create an isolated PostgreSQL schema, apply migrations, run the test, and drop the schema during cleanup.
+
+To run the full local suite with database-backed service tests:
+
+```bash
+docker compose up -d
+export TEST_DATABASE_URL="postgres://jobscout:jobscout@localhost:5432/jobscout?sslmode=disable"
+go test -race -count=1 ./...
+```
+
+Run the lightweight benchmarks with:
+
+```bash
+go test -bench=. ./internal/auth ./internal/httputil
+```
+
+GitHub Actions provides PostgreSQL and sets `TEST_DATABASE_URL`, so CI runs the DB-backed tests automatically.
 
 ## Project Structure
 
