@@ -68,6 +68,41 @@ func TestRemotiveSource_Search_EmptyResult(t *testing.T) {
 	}
 }
 
+func TestRemotiveSource_Search_NumericID(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"jobs": [
+				{
+					"id": 123,
+					"url": "https://example.com/123",
+					"title": "Backend Engineer",
+					"company_name": "TechCorp",
+					"category": "Software Development",
+					"job_type": "full_time",
+					"candidate_required_location": "Worldwide",
+					"salary": "",
+					"publication_date": "2025-01-15T10:00:00Z",
+					"description": "Backend role."
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	src := NewRemotive(server.URL)
+	jobs, err := src.Search(context.Background(), SearchFilters{Keyword: "backend"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(jobs))
+	}
+	if jobs[0].ExternalID != "123" {
+		t.Fatalf("expected external ID 123, got %q", jobs[0].ExternalID)
+	}
+}
+
 func TestRemotiveSource_Search_ServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)

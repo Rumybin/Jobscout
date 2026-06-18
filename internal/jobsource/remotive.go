@@ -31,16 +31,16 @@ type RemotiveSource struct {
 
 // remotiveJob represents a single job from the Remotive API response.
 type remotiveJob struct {
-	ID                        string `json:"id"`
-	URL                       string `json:"url"`
-	Title                     string `json:"title"`
-	CompanyName               string `json:"company_name"`
-	Category                  string `json:"category"`
-	JobType                   string `json:"job_type"`
-	CandidateRequiredLocation string `json:"candidate_required_location"`
-	Salary                    string `json:"salary"`
-	PublicationDate           string `json:"publication_date"`
-	Description               string `json:"description"`
+	ID                        remotiveID `json:"id"`
+	URL                       string     `json:"url"`
+	Title                     string     `json:"title"`
+	CompanyName               string     `json:"company_name"`
+	Category                  string     `json:"category"`
+	JobType                   string     `json:"job_type"`
+	CandidateRequiredLocation string     `json:"candidate_required_location"`
+	Salary                    string     `json:"salary"`
+	PublicationDate           string     `json:"publication_date"`
+	Description               string     `json:"description"`
 }
 
 // Search performs a job search via the Remotive API and returns normalized results.
@@ -97,7 +97,7 @@ func (r *RemotiveSource) Search(ctx context.Context, filters SearchFilters) ([]N
 	for _, j := range remotiveResp.Jobs {
 		normalized = append(normalized, NormalizedJob{
 			Source:                    "remotive",
-			ExternalID:                j.ID,
+			ExternalID:                string(j.ID),
 			Title:                     j.Title,
 			CompanyName:               j.CompanyName,
 			Category:                  j.Category,
@@ -111,6 +111,24 @@ func (r *RemotiveSource) Search(ctx context.Context, filters SearchFilters) ([]N
 	}
 
 	return applyClientSideFilters(normalized, filters), nil
+}
+
+type remotiveID string
+
+func (id *remotiveID) UnmarshalJSON(b []byte) error {
+	var stringID string
+	if err := json.Unmarshal(b, &stringID); err == nil {
+		*id = remotiveID(stringID)
+		return nil
+	}
+
+	var numericID int64
+	if err := json.Unmarshal(b, &numericID); err == nil {
+		*id = remotiveID(strconv.FormatInt(numericID, 10))
+		return nil
+	}
+
+	return fmt.Errorf("remotive id must be string or number")
 }
 
 // applyClientSideFilters applies additional filtering that the Remotive API does not support.
